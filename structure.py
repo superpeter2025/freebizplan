@@ -8,12 +8,41 @@ from io import BytesIO
 # CONFIG
 # --------------------------
 API_KEY = st.secrets["DEEPSEEK_API_KEY"]
+APP_PASSWORD = st.secrets["APP_PASSWORD"]
+
 API_URL = "https://api.deepseek.com/v1/chat/completions"
 MODEL = "deepseek-chat"
 
 st.set_page_config(page_title="AI Business Plan Generator")
+
+# --------------------------
+# PASSWORD PROTECTION
+# --------------------------
+if "authenticated" not in st.session_state:
+    st.session_state.authenticated = False
+
+if not st.session_state.authenticated:
+    st.title("Protected Access")
+
+    password_input = st.text_input(
+        "Enter access password",
+        type="password"
+    )
+
+    if st.button("Login"):
+        if password_input == APP_PASSWORD:
+            st.session_state.authenticated = True
+            st.rerun()
+        else:
+            st.error("Incorrect password")
+
+    st.stop()
+
+# --------------------------
+# APP HEADER
+# --------------------------
 st.title("AI Business Plan Generator")
-st.write("Answer 10 questions and get a full business plan instantly.")
+st.write("Answer 10 questions and generate your business plan instantly.")
 
 # --------------------------
 # FORM
@@ -39,7 +68,7 @@ def build_prompt(data):
     return f"""
 You are an expert business consultant.
 
-Create a clear, structured business plan with:
+Create a structured business plan including:
 
 1. Executive Summary
 2. Problem & Opportunity
@@ -48,9 +77,9 @@ Create a clear, structured business plan with:
 5. Marketing Strategy
 6. Competition Analysis
 7. Startup Budget
-8. Action Plan (5 steps)
+8. Action Plan
 
-Be concise, practical, and actionable.
+Be concise and practical.
 
 DATA:
 Name: {data['name']}
@@ -65,7 +94,7 @@ Budget: {data['budget']}
 """
 
 # --------------------------
-# DEEPSEEK CALL
+# API CALL
 # --------------------------
 def generate_plan(prompt):
     headers = {
@@ -86,7 +115,7 @@ def generate_plan(prompt):
     return response.json()["choices"][0]["message"]["content"]
 
 # --------------------------
-# PDF GENERATION
+# PDF
 # --------------------------
 def create_pdf(text):
     buffer = BytesIO()
@@ -94,16 +123,18 @@ def create_pdf(text):
     styles = getSampleStyleSheet()
 
     story = []
+
     for line in text.split("\n"):
         story.append(Paragraph(line, styles["Normal"]))
         story.append(Spacer(1, 6))
 
     doc.build(story)
     buffer.seek(0)
+
     return buffer
 
 # --------------------------
-# RUN APP
+# RUN
 # --------------------------
 if submitted:
     data = {
@@ -121,23 +152,26 @@ if submitted:
 
     prompt = build_prompt(data)
 
-    with st.spinner("Generating your business plan..."):
+    with st.spinner("Generating business plan..."):
         try:
             plan = generate_plan(prompt)
 
             st.success("Business plan generated!")
 
-            st.text_area("Your Business Plan", plan, height=500)
+            st.text_area(
+                "Your Business Plan",
+                plan,
+                height=500
+            )
 
-            # TXT download
             st.download_button(
                 "Download TXT",
                 plan,
                 file_name="business_plan.txt"
             )
 
-            # PDF download
             pdf = create_pdf(plan)
+
             st.download_button(
                 "Download PDF",
                 pdf,
