@@ -2,6 +2,8 @@ import streamlit as st
 import requests
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
 from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.cidfonts import UnicodeCIDFont
 from io import BytesIO
 
 # --------------------------
@@ -24,10 +26,7 @@ if "authenticated" not in st.session_state:
 if not st.session_state.authenticated:
     st.title("Protected Access")
 
-    password_input = st.text_input(
-        "Enter access password",
-        type="password"
-    )
+    password_input = st.text_input("Enter access password", type="password")
 
     if st.button("Login"):
         if password_input == APP_PASSWORD:
@@ -39,10 +38,10 @@ if not st.session_state.authenticated:
     st.stop()
 
 # --------------------------
-# APP HEADER
+# HEADER
 # --------------------------
 st.title("AI Business Plan Generator")
-st.write("Answer 10 questions and generate your business plan instantly.")
+st.write("Generate your business plan in English and French.")
 
 # --------------------------
 # FORM
@@ -62,9 +61,9 @@ with st.form("business_form"):
     submitted = st.form_submit_button("Generate Business Plan")
 
 # --------------------------
-# PROMPT
+# PROMPTS
 # --------------------------
-def build_prompt(data):
+def build_prompt_en(data):
     return f"""
 You are an expert business consultant.
 
@@ -93,6 +92,35 @@ Marketing: {data['marketing']}
 Budget: {data['budget']}
 """
 
+def build_prompt_fr(data):
+    return f"""
+Vous êtes un consultant expert en création d'entreprise.
+
+Créez un plan d'affaires structuré comprenant :
+
+1. Résumé exécutif
+2. Problème et opportunité
+3. Marché cible
+4. Modèle de revenus
+5. Stratégie marketing
+6. Analyse de la concurrence
+7. Budget de démarrage
+8. Plan d'action
+
+Soyez concis et pratique.
+
+DONNÉES :
+Nom : {data['name']}
+Entreprise : {data['business_name']}
+Idée : {data['idea']}
+Clients cibles : {data['target_customer']}
+Problème : {data['problem']}
+Revenus : {data['revenue']}
+Concurrence : {data['competition']}
+Marketing : {data['marketing']}
+Budget : {data['budget']}
+"""
+
 # --------------------------
 # API CALL
 # --------------------------
@@ -115,10 +143,14 @@ def generate_plan(prompt):
     return response.json()["choices"][0]["message"]["content"]
 
 # --------------------------
-# PDF
+# PDF GENERATOR
 # --------------------------
 def create_pdf(text):
     buffer = BytesIO()
+
+    # Support French characters
+    pdfmetrics.registerFont(UnicodeCIDFont('STSong-Light'))
+
     doc = SimpleDocTemplate(buffer)
     styles = getSampleStyleSheet()
 
@@ -150,32 +182,54 @@ if submitted:
         "budget": budget
     }
 
-    prompt = build_prompt(data)
+    prompt_en = build_prompt_en(data)
+    prompt_fr = build_prompt_fr(data)
 
-    with st.spinner("Generating business plan..."):
+    with st.spinner("Generating business plans..."):
         try:
-            plan = generate_plan(prompt)
+            plan_en = generate_plan(prompt_en)
+            plan_fr = generate_plan(prompt_fr)
 
-            st.success("Business plan generated!")
+            st.success("Business plans generated!")
 
-            st.text_area(
-                "Your Business Plan",
-                plan,
-                height=500
-            )
-
-            st.download_button(
-                "Download TXT",
-                plan,
-                file_name="business_plan.txt"
-            )
-
-            pdf = create_pdf(plan)
+            # --------------------------
+            # ENGLISH OUTPUT
+            # --------------------------
+            st.subheader("Business Plan (English)")
+            st.text_area("English Version", plan_en, height=400)
 
             st.download_button(
-                "Download PDF",
-                pdf,
-                file_name="business_plan.pdf"
+                "Download EN TXT",
+                plan_en,
+                file_name="business_plan_en.txt"
+            )
+
+            pdf_en = create_pdf(plan_en)
+
+            st.download_button(
+                "Download EN PDF",
+                pdf_en,
+                file_name="business_plan_en.pdf"
+            )
+
+            # --------------------------
+            # FRENCH OUTPUT
+            # --------------------------
+            st.subheader("Plan d'affaires (Français)")
+            st.text_area("Version Française", plan_fr, height=400)
+
+            st.download_button(
+                "Télécharger TXT (FR)",
+                plan_fr,
+                file_name="business_plan_fr.txt"
+            )
+
+            pdf_fr = create_pdf(plan_fr)
+
+            st.download_button(
+                "Télécharger PDF (FR)",
+                pdf_fr,
+                file_name="business_plan_fr.pdf"
             )
 
         except Exception as e:
